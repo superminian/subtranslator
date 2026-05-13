@@ -1,0 +1,40 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# 安装依赖
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制应用代码
+COPY subtranslator.py .
+COPY web_ui.py .
+COPY templates/ ./templates/
+COPY static/ ./static/
+
+# 创建配置和日志目录
+RUN mkdir -p /config
+
+# 设置卷
+VOLUME ["/config", "/mnt/user/media"]
+
+# 设置默认环境变量（非敏感信息）
+# API_KEY 应在运行时通过 docker run -e 或 docker-compose 传入
+ENV MODEL="deepseek-chat" \
+    MOVIES_DIR="/mnt/user/media/media/movies" \
+    TV_DIR="/mnt/user/media/media/tv" \
+    CUSTOM_DIRS="" \
+    MAX_WORKERS="10" \
+    LOG_LEVEL="INFO" \
+    WEB_PORT="8095" \
+    PROXY_URL="https://api.deepseek.com/v1/chat/completions"
+
+# 暴露 Web UI 端口
+EXPOSE 8095
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8095/health', timeout=5)"
+
+# 运行应用（使用 root 用户避免权限问题）
+CMD ["python", "subtranslator.py"]

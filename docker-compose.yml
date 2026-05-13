@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  subtranslator:
+    build: .
+    container_name: subtranslator
+    restart: unless-stopped
+
+    environment:
+      - API_KEY=${API_KEY}
+      - PROXY_URL=${PROXY_URL:-https://api.deepseek.com/v1/chat/completions}
+      - MODEL=${MODEL:-deepseek-chat}
+      - MOVIES_DIR=${MOVIES_DIR:-/mnt/user/media/media/movies}
+      - TV_DIR=${TV_DIR:-/mnt/user/media/media/tv}
+      - CUSTOM_DIRS=${CUSTOM_DIRS:-}
+      - MAX_WORKERS=${MAX_WORKERS:-10}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WEB_PORT=${WEB_PORT:-8095}
+
+    volumes:
+      - ./config:/config
+      - ${MEDIA_PATH:-/mnt/user/media}:/mnt/user/media
+
+    ports:
+      - "${WEB_PORT:-8095}:8095"
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8095/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
