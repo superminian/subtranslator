@@ -1,13 +1,28 @@
 #!/usr/bin/env python3
 import os
 import json
+import secrets
 import threading
 from datetime import datetime
+from functools import wraps
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
+
+ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '')
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not ADMIN_TOKEN:
+            return f(*args, **kwargs)
+        token = request.headers.get('X-Admin-Token') or request.args.get('token')
+        if token != ADMIN_TOKEN:
+            return jsonify({'error': 'Unauthorized'}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 # 全局状态管理
 class AppState:
@@ -123,7 +138,7 @@ state = AppState()
 # API 路由
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', admin_token=ADMIN_TOKEN)
 
 @app.route('/health')
 def health():
@@ -170,6 +185,7 @@ def get_config():
     return jsonify(config)
 
 @app.route('/api/config', methods=['POST'])
+@require_auth
 def update_config():
     try:
         data = request.json

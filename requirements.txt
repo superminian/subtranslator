@@ -1,5 +1,5 @@
-requests
-watchdog
-flask
-flask-cors
-waitress
+requests==2.32.3
+watchdog==4.0.1
+flask==3.0.3
+flask-cors==5.0.0
+waitress==3.0.0

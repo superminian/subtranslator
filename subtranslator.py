@@ -28,11 +28,19 @@ logging.basicConfig(
 logger = logging.getLogger("SubtitleTranslator")
 
 class SubtitleTranslator:
-    def __init__(self, api_key, proxy_url=None, model="gpt-4o-mini", max_workers=10):
+    LANG_NAMES = {
+        'zh': '中文', 'en': 'English', 'ja': '日本語', 'ko': '한국어',
+        'fr': 'Français', 'de': 'Deutsch', 'es': 'Español', 'it': 'Italiano',
+        'pt': 'Português', 'ru': 'Русский', 'ar': 'العربية', 'th': 'ไทย',
+    }
+
+    def __init__(self, api_key, proxy_url=None, model="gpt-4o-mini", max_workers=10, target_lang="zh"):
         self.api_key = api_key
         self.proxy_url = proxy_url if proxy_url else "https://api.openai.com/v1/chat/completions"
         self.model = model
         self.max_workers = max_workers
+        self.target_lang = target_lang
+        self.target_lang_name = self.LANG_NAMES.get(target_lang, target_lang)
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
@@ -47,15 +55,17 @@ class SubtitleTranslator:
         non_chinese_count = 0
 
         for line in lines:
-            if '-->' in line or line.strip().isdigit():
+            if '-->' in line or line.strip().isdigit() or not line.strip():
                 continue
             if re.search(r'[\u4e00-\u9fff]', line):
                 chinese_count += 1
-            elif line.strip() and re.search(r'[a-zA-Z]', line):
+            elif re.search(r'[a-zA-Z]', line):
                 non_chinese_count += 1
 
-        # 如果中英文行数都较多，可能已经是双语字幕
-        return chinese_count > 5 and non_chinese_count > 5
+        total = chinese_count + non_chinese_count
+        if total < 4:
+            return False
+        return chinese_count >= total * 0.2 and non_chinese_count >= total * 0.2
 
     def _wait_for_file_stable(self, file_path, timeout=10):
         """等待文件写入完成"""
@@ -74,7 +84,7 @@ class SubtitleTranslator:
                     stable_count = 0
                     last_size = current_size
                 time.sleep(0.5)
-            except:
+            except OSError:
                 time.sleep(0.5)
 
         return stable_count >= 2
@@ -157,8 +167,8 @@ class SubtitleTranslator:
                 payload = {
                     "model": self.model,
                     "messages": [
-                        {"role": "system", "content": "你是一个专业的字幕翻译专家。请将以下字幕翻译成中文，保持原意的同时使翻译自然流畅。不要添加任何解释或额外内容。"},
-                        {"role": "user", "content": f"翻译以下字幕内容为中文:\n{text}"}
+                        {"role": "system", "content": f"你是一个专业的字幕翻译专家。请将以下字幕翻译成{self.target_lang_name}，保持原意的同时使翻译自然流畅。不要添加任何解释或额外内容。"},
+                        {"role": "user", "content": f"翻译以下字幕内容为{self.target_lang_name}:\n{text}"}
                     ],
                     "temperature": 0.3
                 }
@@ -269,19 +279,21 @@ class SubtitleTranslator:
                             changed = True
                             break
 
-                # 添加 .zh 和原扩展名
-                return f"{base_path}.zh{ext}"
+                # 添加目标语言标识和原扩展名
+                return f"{base_path}.{self.target_lang}{ext}"
 
         # 如果没有匹配的扩展名，使用原逻辑
-        return file_path.replace('.srt', '.zh.srt').replace('.ass', '.zh.ass').replace('.ssa', '.zh.ssa').replace('.vtt', '.zh.vtt')
+        base, ext = os.path.splitext(file_path)
+        return f"{base}.{self.target_lang}{ext}"
 
 class SubtitleEventHandler(FileSystemEventHandler):
     def __init__(self, translator, subtitle_extensions):
         self.translator = translator
         self.subtitle_extensions = subtitle_extensions
-        self.processed_files = set()
+        self.processed_files = {}  # {path: timestamp}
         self.processing_lock = threading.Lock()
-        self.pending_files = {}  # 防抖机制
+        self.pending_files = {}
+        self.max_age = 3600  # 1 hour TTL
 
     def on_created(self, event):
         if event.is_directory:
@@ -299,6 +311,7 @@ class SubtitleEventHandler(FileSystemEventHandler):
                 if file_path in self.pending_files:
                     logger.debug(f"文件已在待处理队列: {file_path}")
                     return
+                self._cleanup_processed()
                 if file_path in self.processed_files:
                     logger.debug(f"文件已处理过: {file_path}")
                     return
@@ -328,7 +341,7 @@ class SubtitleEventHandler(FileSystemEventHandler):
                 return
 
             # 标记为已处理（在翻译前）
-            self.processed_files.add(file_path)
+            self.processed_files[file_path] = time.time()
 
         # 执行翻译（释放锁后）
         try:
@@ -337,6 +350,12 @@ class SubtitleEventHandler(FileSystemEventHandler):
             with self.processing_lock:
                 if file_path in self.pending_files:
                     del self.pending_files[file_path]
+
+    def _cleanup_processed(self):
+        now = time.time()
+        expired = [k for k, v in self.processed_files.items() if now - v > self.max_age]
+        for k in expired:
+            del self.processed_files[k]
 
 def main():
     api_key = os.environ.get('API_KEY')
@@ -355,6 +374,7 @@ def main():
 
     max_workers = int(os.environ.get('MAX_WORKERS', '10'))
     web_port = int(os.environ.get('WEB_PORT', '8095'))
+    target_lang = os.environ.get('TARGET_LANG', 'zh')
 
     if not api_key:
         logger.error("未设置API_KEY环境变量")
@@ -363,7 +383,7 @@ def main():
 
     subtitle_extensions = ['.srt', '.ass', '.ssa', '.vtt']
 
-    translator = SubtitleTranslator(api_key, proxy_url, model, max_workers)
+    translator = SubtitleTranslator(api_key, proxy_url, model, max_workers, target_lang)
 
     event_handler = SubtitleEventHandler(translator, subtitle_extensions)
     observer = Observer()

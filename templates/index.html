@@ -1032,7 +1032,10 @@
 
             fetch('/api/config', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Admin-Token': '{{ admin_token }}'
+                },
                 body: JSON.stringify(config)
             })
             .then(r => r.json())

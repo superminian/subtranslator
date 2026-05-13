@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   subtranslator:
     build: .
@@ -16,6 +14,8 @@ services:
       - MAX_WORKERS=${MAX_WORKERS:-10}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - WEB_PORT=${WEB_PORT:-8095}
+      - TARGET_LANG=${TARGET_LANG:-zh}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
 
     volumes:
       - ./config:/config

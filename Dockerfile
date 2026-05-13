@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -27,7 +27,9 @@ ENV MODEL="deepseek-chat" \
     MAX_WORKERS="10" \
     LOG_LEVEL="INFO" \
     WEB_PORT="8095" \
-    PROXY_URL="https://api.deepseek.com/v1/chat/completions"
+    PROXY_URL="https://api.deepseek.com/v1/chat/completions" \
+    TARGET_LANG="zh" \
+    ADMIN_TOKEN=""
 
 # 暴露 Web UI 端口
 EXPOSE 8095
