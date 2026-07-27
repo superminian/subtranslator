@@ -1,4 +1,4 @@
-requests==2.32.3
+requests==2.33.0
 watchdog==4.0.1
 flask==3.0.3
 flask-cors==5.0.0
