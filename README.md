@@ -41,10 +41,11 @@ TARGET_LANG=zh
 ADMIN_TOKEN=your-secret-token
 ```
 
-2. 启动服务：
+2. 拉取镜像并启动服务：
 
-```bash
-docker-compose up -d
+```console
+docker compose pull
+docker compose up -d
 ```
 
 3. 访问 Web UI：`http://your-server-ip:8095`
@@ -80,6 +81,8 @@ docker run -d \
 | `LOG_LEVEL` | 日志级别 (DEBUG/INFO/WARNING/ERROR) | `INFO` | 否 |
 | `WEB_PORT` | Web UI 端口 | `8095` | 否 |
 | `ADMIN_TOKEN` | 配置接口认证 Token（留空则不启用认证） | - | 否 |
+
+设置 `ADMIN_TOKEN` 后，保存配置时浏览器会提示输入 Token，并仅在当前浏览器会话中保存；Token 不会嵌入页面或写入 URL。
 
 ### 支持的目标语言
 
@@ -120,9 +123,16 @@ docker run -d \
 
 ## CI/CD
 
-项目使用 GitHub Actions 自动构建。每次推送到 `main` 分支会自动构建 `linux/amd64` + `linux/arm64` 双平台镜像并推送到 Docker Hub。
+项目使用 GitHub Actions 自动验证和发布镜像：
 
-镜像地址：`cyberfrostfall/subtranslator:latest`
+- Pull Request：构建 `linux/amd64` + `linux/arm64` 双平台镜像，但不推送。
+- 推送到 `main`：发布 `latest` 和 `sha-<完整提交 SHA>`。
+- 推送版本标签（如 `v1.2.3`）：发布 `1.2.3`、`1.2` 和 `sha-<完整提交 SHA>`。
+- 发布镜像包含 OCI 元数据、构建来源证明（provenance）和 SBOM。
+
+镜像地址：`cyberfrostfall/subtranslator`
+
+生产环境建议使用版本标签（例如 `cyberfrostfall/subtranslator:1.1.0`）固定版本；`latest` 会跟随 `main` 持续更新。
 
 ## 故障排查
 

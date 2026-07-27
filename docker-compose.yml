@@ -1,6 +1,7 @@
 services:
   subtranslator:
-    build: .
+    image: cyberfrostfall/subtranslator:latest
+    pull_policy: always
     container_name: subtranslator
     restart: unless-stopped
 

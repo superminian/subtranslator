@@ -18,8 +18,8 @@ def require_auth(f):
     def decorated(*args, **kwargs):
         if not ADMIN_TOKEN:
             return f(*args, **kwargs)
-        token = request.headers.get('X-Admin-Token') or request.args.get('token')
-        if token != ADMIN_TOKEN:
+        token = request.headers.get('X-Admin-Token', '')
+        if not secrets.compare_digest(token, ADMIN_TOKEN):
             return jsonify({'error': 'Unauthorized'}), 401
         return f(*args, **kwargs)
     return decorated
@@ -138,7 +138,7 @@ state = AppState()
 # API 路由
 @app.route('/')
 def index():
-    return render_template('index.html', admin_token=ADMIN_TOKEN)
+    return render_template('index.html', admin_token_required=bool(ADMIN_TOKEN))
 
 @app.route('/health')
 def health():
