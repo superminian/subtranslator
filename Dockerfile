@@ -30,8 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE="1" \
     LOG_LEVEL="INFO" \
     WEB_PORT="8095" \
     PROXY_URL="https://api.deepseek.com/v1/chat/completions" \
-    TARGET_LANG="zh" \
-    ADMIN_TOKEN=""
+    TARGET_LANG="zh"
 
 # 暴露 Web UI 端口
 EXPOSE 8095
