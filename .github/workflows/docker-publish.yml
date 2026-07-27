@@ -22,8 +22,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install --requirement requirements-dev.txt
+
+      - name: Run static checks
+        run: |
+          ruff check config_manager.py subtranslator.py web_ui.py tests
+          python -m compileall -q config_manager.py subtranslator.py web_ui.py
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
   build:
     name: Build
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 45
 

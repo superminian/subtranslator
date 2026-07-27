@@ -17,6 +17,7 @@ services:
       - WEB_PORT=${WEB_PORT:-8095}
       - TARGET_LANG=${TARGET_LANG:-zh}
       - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
 
     volumes:
       - ./config:/config

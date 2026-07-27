@@ -13,3 +13,5 @@ __pycache__
 README.md
 LICENSE
 docker-compose.yml
+requirements-dev.txt
+tests
