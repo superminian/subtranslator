@@ -1026,6 +1026,20 @@
             e.preventDefault();
             const formData = new FormData(e.target);
             const config = {};
+            const adminTokenRequired = {{ admin_token_required | tojson }};
+            let adminToken = '';
+
+            if (adminTokenRequired) {
+                adminToken = sessionStorage.getItem('subtranslatorAdminToken') || '';
+                if (!adminToken) {
+                    adminToken = window.prompt('请输入 Admin Token') || '';
+                    if (!adminToken) {
+                        return;
+                    }
+                    sessionStorage.setItem('subtranslatorAdminToken', adminToken);
+                }
+            }
+
             formData.forEach((value, key) => {
                 config[key] = value;
             });
@@ -1034,11 +1048,18 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Admin-Token': '{{ admin_token }}'
+                    ...(adminToken && {'X-Admin-Token': adminToken})
                 },
                 body: JSON.stringify(config)
             })
-            .then(r => r.json())
+            .then(async r => {
+                const data = await r.json();
+                if (r.status === 401) {
+                    sessionStorage.removeItem('subtranslatorAdminToken');
+                    throw new Error('Admin Token 无效，请重试');
+                }
+                return data;
+            })
             .then(data => {
                 const alert = document.getElementById('config-alert');
                 alert.className = 'alert ' + (data.success ? 'success' : 'error');

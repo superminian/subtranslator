@@ -1,10 +1,10 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
 # 安装依赖
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --no-compile -r requirements.txt
 
 # 复制应用代码
 COPY subtranslator.py .
@@ -20,7 +20,9 @@ VOLUME ["/config", "/mnt/user/media"]
 
 # 设置默认环境变量（非敏感信息）
 # API_KEY 应在运行时通过 docker run -e 或 docker-compose 传入
-ENV MODEL="deepseek-chat" \
+ENV PYTHONDONTWRITEBYTECODE="1" \
+    PYTHONUNBUFFERED="1" \
+    MODEL="deepseek-chat" \
     MOVIES_DIR="/mnt/user/media/media/movies" \
     TV_DIR="/mnt/user/media/media/tv" \
     CUSTOM_DIRS="" \
