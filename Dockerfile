@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir --no-compile -r requirements.txt
 # 复制应用代码
 COPY subtranslator.py .
 COPY web_ui.py .
+COPY config_manager.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
 

@@ -826,6 +826,56 @@
     <script>
         let startTime = null;
         let lastContentLogCount = 0;
+        const adminTokenRequired = {{ admin_token_required | tojson }};
+        let adminToken = sessionStorage.getItem('subtranslatorAdminToken') || '';
+        let adminPromptDismissed = false;
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            })[character]);
+        }
+
+        function getAdminToken() {
+            if (!adminTokenRequired) {
+                return '';
+            }
+            if (adminToken) {
+                return adminToken;
+            }
+            if (adminPromptDismissed) {
+                throw new Error('需要 Admin Token 才能读取管理数据');
+            }
+
+            adminToken = window.prompt('请输入 Admin Token') || '';
+            if (!adminToken) {
+                adminPromptDismissed = true;
+                throw new Error('未提供 Admin Token');
+            }
+            sessionStorage.setItem('subtranslatorAdminToken', adminToken);
+            return adminToken;
+        }
+
+        async function apiFetch(url, options = {}) {
+            const token = getAdminToken();
+            const headers = new Headers(options.headers || {});
+            if (token) {
+                headers.set('X-Admin-Token', token);
+            }
+
+            const response = await fetch(url, {...options, headers});
+            if (response.status === 401) {
+                adminToken = '';
+                adminPromptDismissed = true;
+                sessionStorage.removeItem('subtranslatorAdminToken');
+                throw new Error('Admin Token 无效，请刷新页面后重试');
+            }
+            return response;
+        }
 
         function openConfigModal() {
             document.getElementById('config-modal').classList.add('active');
@@ -866,7 +916,7 @@
         }
 
         function updateTranslationProgress() {
-            fetch('/api/translation-logs')
+            apiFetch('/api/translation-logs')
                 .then(r => r.json())
                 .then(data => {
                     const container = document.getElementById('translation-progress-list');
@@ -890,20 +940,23 @@
                             'skipped': 'error'
                         }[log.status] || 'progress';
 
-                        const fileName = log.file_path.split('/').pop();
+                        const fileName = escapeHtml(log.file_path.split('/').pop());
                         const timeDiff = getTimeDiff(log.updated_at);
+                        const status = escapeHtml(log.status);
+                        const message = escapeHtml(log.message);
+                        const progress = Math.min(100, Math.max(0, Number(log.progress) || 0));
 
                         return `
                             <div class="translation-log-item">
                                 <div class="translation-file-name">${statusEmoji} ${fileName}</div>
                                 <div class="translation-status-row">
-                                    <span class="status-badge status-${statusClass}">${log.status}</span>
+                                    <span class="status-badge status-${statusClass}">${status}</span>
                                     <div class="translation-progress-bar">
-                                        <div class="translation-progress-fill ${log.status}" style="width: ${log.progress}%"></div>
+                                        <div class="translation-progress-fill ${statusClass}" style="width: ${progress}%"></div>
                                     </div>
-                                    <span style="min-width: 40px; text-align: right; font-weight: 600; color: white;">${log.progress}%</span>
+                                    <span style="min-width: 40px; text-align: right; font-weight: 600; color: white;">${progress}%</span>
                                 </div>
-                                <div class="translation-message">${log.message}</div>
+                                <div class="translation-message">${message}</div>
                                 <div class="translation-time">${timeDiff}</div>
                             </div>
                         `;
@@ -915,7 +968,7 @@
         }
 
         function updateTranslationContent() {
-            fetch('/api/translation-content-logs')
+            apiFetch('/api/translation-content-logs')
                 .then(r => r.json())
                 .then(data => {
                     const container = document.getElementById('translation-content-list');
@@ -937,8 +990,10 @@
 
                     // 数据已经是倒序（最新在前），直接渲染
                     const html = data.map(log => {
-                        const fileName = log.file_path.split('/').pop();
+                        const fileName = escapeHtml(log.file_path.split('/').pop());
                         const timeDiff = getTimeDiff(log.timestamp);
+                        const original = escapeHtml(log.original);
+                        const translated = escapeHtml(log.translated);
 
                         return `
                             <div class="content-log-item">
@@ -948,11 +1003,11 @@
                                 </div>
                                 <div class="content-log-text">
                                     <div class="content-log-label">🔤 原文</div>
-                                    <div class="content-log-content content-log-original">${log.original}</div>
+                                    <div class="content-log-content content-log-original">${original}</div>
                                 </div>
                                 <div class="content-log-text">
                                     <div class="content-log-label">✅ 译文</div>
-                                    <div class="content-log-content content-log-translated">${log.translated}</div>
+                                    <div class="content-log-content content-log-translated">${translated}</div>
                                 </div>
                             </div>
                         `;
@@ -980,7 +1035,7 @@
         }
 
         function updateLogs() {
-            fetch('/api/logs?limit=200')
+            apiFetch('/api/logs?limit=200')
                 .then(r => r.json())
                 .then(data => {
                     const container = document.getElementById('log-list');
@@ -991,13 +1046,20 @@
 
                     const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
 
-                    const html = data.reverse().map(log => `
-                        <div class="log-item">
-                            <span class="log-level ${log.level}">${log.level}</span>
-                            <span style="color: rgba(255,255,255,0.7);">${new Date(log.timestamp).toLocaleString('zh-CN')}</span>
-                            <span>${log.message}</span>
-                        </div>
-                    `).join('');
+                    const html = data.reverse().map(log => {
+                        const level = escapeHtml(log.level);
+                        const levelClass = ['DEBUG', 'INFO', 'WARNING', 'ERROR'].includes(log.level)
+                            ? log.level
+                            : 'INFO';
+                        const message = escapeHtml(log.message);
+                        return `
+                            <div class="log-item">
+                                <span class="log-level ${levelClass}">${level}</span>
+                                <span style="color: rgba(255,255,255,0.7);">${new Date(log.timestamp).toLocaleString('zh-CN')}</span>
+                                <span>${message}</span>
+                            </div>
+                        `;
+                    }).join('');
 
                     container.innerHTML = html;
 
@@ -1009,7 +1071,7 @@
         }
 
         function loadConfig() {
-            fetch('/api/config')
+            apiFetch('/api/config')
                 .then(r => r.json())
                 .then(data => {
                     Object.keys(data).forEach(key => {
@@ -1026,44 +1088,26 @@
             e.preventDefault();
             const formData = new FormData(e.target);
             const config = {};
-            const adminTokenRequired = {{ admin_token_required | tojson }};
-            let adminToken = '';
-
-            if (adminTokenRequired) {
-                adminToken = sessionStorage.getItem('subtranslatorAdminToken') || '';
-                if (!adminToken) {
-                    adminToken = window.prompt('请输入 Admin Token') || '';
-                    if (!adminToken) {
-                        return;
-                    }
-                    sessionStorage.setItem('subtranslatorAdminToken', adminToken);
-                }
-            }
 
             formData.forEach((value, key) => {
                 config[key] = value;
             });
 
-            fetch('/api/config', {
+            apiFetch('/api/config', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    ...(adminToken && {'X-Admin-Token': adminToken})
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(config)
             })
             .then(async r => {
                 const data = await r.json();
-                if (r.status === 401) {
-                    sessionStorage.removeItem('subtranslatorAdminToken');
-                    throw new Error('Admin Token 无效，请重试');
-                }
                 return data;
             })
             .then(data => {
                 const alert = document.getElementById('config-alert');
                 alert.className = 'alert ' + (data.success ? 'success' : 'error');
-                alert.textContent = data.message;
+                alert.textContent = data.message || data.error || '请求失败';
                 alert.style.display = 'block';
                 setTimeout(() => alert.style.display = 'none', 5000);
             })
