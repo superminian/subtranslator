@@ -54,7 +54,24 @@ class WebUiTests(unittest.TestCase):
 
                 page = self.client.get("/")
                 self.assertNotIn(b"secret", page.data)
-                self.assertIn(b"escapeHtml", page.data)
+                self.assertIn(b"static/dashboard.js", page.data)
+                self.assertIn(b"static/style.css", page.data)
+
+                dashboard_script = self.client.get("/static/dashboard.js")
+                try:
+                    self.assertEqual(dashboard_script.status_code, 200)
+                    self.assertIn(b"escapeHtml", dashboard_script.data)
+                finally:
+                    dashboard_script.close()
+
+    def test_dashboard_has_modern_accessible_controls(self):
+        page = self.client.get("/")
+
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'id="theme-toggle"', page.data)
+        self.assertIn(b'role="dialog"', page.data)
+        self.assertIn(b'aria-live="polite"', page.data)
+        self.assertNotIn(b'class="glass"', page.data)
 
     def test_cors_is_not_open_by_default(self):
         response = self.client.get(
