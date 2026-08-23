@@ -56,6 +56,7 @@ class WebUiTests(unittest.TestCase):
         self.assertIn(b'role="dialog"', page.data)
         self.assertIn(b'aria-live="polite"', page.data)
         self.assertIn(b'<input type="text" name="MODEL"', page.data)
+        self.assertIn(b'name="API_RETRY_COUNT"', page.data)
         self.assertNotIn(b'<select name="MODEL"', page.data)
         self.assertNotIn(b'class="glass"', page.data)
 

@@ -457,6 +457,10 @@ svg {
     background: var(--danger);
 }
 
+.task-status-dot.status-warning {
+    background: var(--warning);
+}
+
 .task-status-dot.status-progress {
     background: var(--primary);
 }
@@ -497,6 +501,11 @@ svg {
     color: var(--danger);
 }
 
+.status-warning {
+    background: var(--warning-soft);
+    color: var(--warning);
+}
+
 .status-progress {
     background: var(--primary-soft);
     color: var(--primary);
@@ -522,6 +531,10 @@ svg {
 
 .translation-progress-fill.error {
     background: var(--danger);
+}
+
+.translation-progress-fill.warning {
+    background: var(--warning);
 }
 
 .translation-percent {

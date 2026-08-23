@@ -134,6 +134,7 @@ async function updateTranslationProgress() {
         container.innerHTML = data.map(log => {
             const statusClass = {
                 success: 'success',
+                partial: 'warning',
                 failed: 'error',
                 skipped: 'error'
             }[log.status] || 'progress';

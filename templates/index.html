@@ -188,6 +188,11 @@
                     <label for="max-workers">最大并发数</label>
                     <input type="number" name="MAX_WORKERS" id="max-workers" value="10" min="1" max="50">
                 </div>
+                <div class="form-group">
+                    <label for="api-retry-count">API 失败重试次数</label>
+                    <input type="number" name="API_RETRY_COUNT" id="api-retry-count" value="3" min="0" max="10">
+                    <small>仅重试失败片段；不包含首次请求</small>
+                </div>
                 <div class="form-group form-group-wide">
                     <label for="movies-dir">电影目录</label>
                     <input type="text" name="MOVIES_DIR" id="movies-dir" placeholder="/mnt/user/media/media/movies">

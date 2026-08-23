@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
@@ -24,6 +25,23 @@ logger = logging.getLogger("SubtitleTranslator")
 
 class SubtitleTranslationError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class SubtitleTranslationResult:
+    content: str
+    total_segments: int
+    failed_indices: tuple[int, ...]
+
+    @property
+    def successful_segments(self):
+        return self.total_segments - len(self.failed_indices)
+
+    @property
+    def success_rate(self):
+        if self.total_segments == 0:
+            return 1.0
+        return self.successful_segments / self.total_segments
 
 
 def configure_logging(log_level):
@@ -51,6 +69,7 @@ def configure_logging(log_level):
 
 
 class SubtitleTranslator:
+    MIN_PARTIAL_SUCCESS_RATE: ClassVar[float] = 0.99
     LANG_NAMES: ClassVar[dict[str, str]] = {
         "zh": "中文",
         "en": "English",
@@ -73,12 +92,14 @@ class SubtitleTranslator:
         model,
         max_workers=10,
         target_lang="zh",
+        api_retry_count=3,
     ):
         self.api_key = api_key
         self.proxy_url = proxy_url
         self.model = model
         self.max_workers = max_workers
         self.target_lang = target_lang
+        self.api_retry_count = api_retry_count
         self.target_lang_name = self.LANG_NAMES.get(target_lang, target_lang)
         self.headers = {
             "Content-Type": "application/json",
@@ -90,7 +111,11 @@ class SubtitleTranslator:
         )
         self.thread_local = threading.local()
         logger.info(
-            f"初始化翻译器: 模型={model}, 代理URL={'已设置' if proxy_url else '未设置'}, 最大并发数={max_workers}"
+            "初始化翻译器: 模型=%s, 代理URL=%s, 最大并发数=%s, API失败重试次数=%s",
+            model,
+            "已设置" if proxy_url else "未设置",
+            max_workers,
+            api_retry_count,
         )
         state.add_log("INFO", f"翻译器初始化完成: {model}")
 
@@ -154,6 +179,7 @@ class SubtitleTranslator:
         text_segments = []
         segment_positions = []
         original_texts = []
+        failures = []
 
         i = 0
         while i < len(lines):
@@ -199,7 +225,6 @@ class SubtitleTranslator:
                 self.executor.submit(self.translate_text, text): idx
                 for idx, text in enumerate(text_segments)
             }
-            failures = []
             translated_texts = [None] * len(text_segments)
 
             for future in as_completed(future_to_index):
@@ -214,28 +239,63 @@ class SubtitleTranslator:
                     logger.error("翻译片段失败: %s", exc)
                     failures.append(idx)
 
-            if failures:
-                raise SubtitleTranslationError(
-                    f"{len(failures)}/{len(text_segments)} 个字幕片段翻译失败"
+            failures.sort()
+            for idx in failures:
+                result_lines[segment_positions[idx]] = original_texts[idx]
+                logger.warning(
+                    "片段 %s 重试耗尽，保留原文: %s",
+                    idx + 1,
+                    " ".join(original_texts[idx].split())[:120],
                 )
 
             for original_text, translated_text in zip(
-                original_texts, translated_texts, strict=True
+                original_texts,
+                translated_texts,
+                strict=True,
             ):
+                if translated_text is None:
+                    continue
                 state.add_translation_content_log(
                     file_path=file_path,
                     original_text=original_text[:100],
                     translated_text=translated_text[:100],
                 )
 
-        return "\n".join(result_lines)
+        return SubtitleTranslationResult(
+            content="\n".join(result_lines),
+            total_segments=len(text_segments),
+            failed_indices=tuple(failures),
+        )
 
-    def translate_text(self, text, retry=3):
+    @staticmethod
+    def _api_error_detail(response):
+        try:
+            body = response.json()
+        except (ValueError, TypeError):
+            detail = response.text
+        else:
+            error = body.get("error") if isinstance(body, dict) else None
+            if isinstance(error, dict):
+                message = error.get("message") or error.get("code") or error
+                code = error.get("code")
+                detail = f"{code}: {message}" if code and code != message else message
+            else:
+                detail = error or body
+
+        normalized = " ".join(str(detail or "无响应详情").split())
+        request_id = response.headers.get("x-request-id", "")
+        if request_id:
+            normalized = f"{normalized} (request_id={request_id})"
+        return normalized[:500]
+
+    def translate_text(self, text, retry_count=None):
         """调用ChatGPT API翻译文本，带重试机制"""
         if not self._needs_translation(text):
             return text
 
-        for attempt in range(retry):
+        retries = self.api_retry_count if retry_count is None else retry_count
+        total_attempts = retries + 1
+        for attempt in range(total_attempts):
             try:
                 payload = {
                     "model": self.model,
@@ -266,18 +326,28 @@ class SubtitleTranslator:
                         raise SubtitleTranslationError("API 响应格式不正确") from exc
                     return translated_text
                 else:
+                    detail = self._api_error_detail(response)
                     logger.warning(
-                        f"API 返回错误 {response.status_code}, 尝试 {attempt + 1}/{retry}"
+                        "API 返回错误 %s: %s，尝试 %s/%s",
+                        response.status_code,
+                        detail,
+                        attempt + 1,
+                        total_attempts,
                     )
-                    if attempt < retry - 1:
+                    if attempt < total_attempts - 1:
                         time.sleep(2**attempt)  # 指数退避
                     else:
                         raise SubtitleTranslationError(
-                            f"API 错误: {response.status_code}"
+                            f"API 错误 {response.status_code}: {detail}"
                         )
             except Exception as e:
-                if attempt < retry - 1:
-                    logger.warning(f"翻译失败，重试 {attempt + 1}/{retry}: {e!s}")
+                if attempt < total_attempts - 1:
+                    logger.warning(
+                        "翻译失败，尝试 %s/%s: %s",
+                        attempt + 1,
+                        total_attempts,
+                        e,
+                    )
                     time.sleep(2**attempt)
                 else:
                     raise
@@ -321,9 +391,19 @@ class SubtitleTranslator:
             state.add_translation_log(
                 file_path, "translating", "正在调用 API 翻译...", 30
             )
-            translated_content = self.translate_subtitle_content(
+            translation_result = self.translate_subtitle_content(
                 content, file_path=file_path
             )
+
+            if (
+                translation_result.failed_indices
+                and translation_result.success_rate < self.MIN_PARTIAL_SUCCESS_RATE
+            ):
+                raise SubtitleTranslationError(
+                    f"仅完成 {translation_result.successful_segments}/"
+                    f"{translation_result.total_segments} 个字幕片段 "
+                    f"({translation_result.success_rate:.2%})，低于 99% 保存阈值"
+                )
 
             state.add_translation_log(
                 file_path, "translating", "翻译完成，保存文件...", 80
@@ -332,15 +412,31 @@ class SubtitleTranslator:
             output_path = self._generate_output_path(file_path)
 
             source_mode = stat.S_IMODE(Path(file_path).stat().st_mode)
-            self._atomic_write(output_path, translated_content, mode=source_mode)
-
-            logger.info(f"翻译完成: {output_path}")
-            state.add_log("INFO", f"翻译完成: {output_path}")
-            state.add_translation_log(
-                file_path, "success", f"已保存到 {output_path}", 100
+            self._atomic_write(
+                output_path,
+                translation_result.content,
+                mode=source_mode,
             )
+
+            if translation_result.failed_indices:
+                message = (
+                    f"部分完成: {translation_result.successful_segments}/"
+                    f"{translation_result.total_segments} "
+                    f"({translation_result.success_rate:.2%})，"
+                    f"{len(translation_result.failed_indices)} 个片段保留原文"
+                )
+                logger.warning("%s: %s", message, output_path)
+                state.add_log("WARNING", f"{message}: {output_path}")
+                state.add_translation_log(file_path, "partial", message, 100)
+                state.add_file(file_path, "partial", f"{message}: {output_path}")
+            else:
+                logger.info(f"翻译完成: {output_path}")
+                state.add_log("INFO", f"翻译完成: {output_path}")
+                state.add_translation_log(
+                    file_path, "success", f"已保存到 {output_path}", 100
+                )
+                state.add_file(file_path, "success", f"已保存到 {output_path}")
             state.increment_stat("total_translated")
-            state.add_file(file_path, "success", f"已保存到 {output_path}")
             return True
 
         except Exception as e:  # noqa: BLE001 - file task boundary records all failures
@@ -580,6 +676,7 @@ def main():
     watch_dirs = list(dict.fromkeys(watch_dirs))
 
     max_workers = int(config["MAX_WORKERS"])
+    api_retry_count = int(config["API_RETRY_COUNT"])
     web_port = int(config["WEB_PORT"])
     target_lang = config["TARGET_LANG"]
 
@@ -594,7 +691,14 @@ def main():
 
     subtitle_extensions = [".srt", ".ass", ".ssa", ".vtt"]
 
-    translator = SubtitleTranslator(api_key, proxy_url, model, max_workers, target_lang)
+    translator = SubtitleTranslator(
+        api_key,
+        proxy_url,
+        model,
+        max_workers,
+        target_lang,
+        api_retry_count,
+    )
 
     event_handler = SubtitleEventHandler(translator, subtitle_extensions)
     observer = Observer()

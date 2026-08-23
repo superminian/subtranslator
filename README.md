@@ -34,6 +34,7 @@ MOVIES_DIR=/mnt/user/media/media/movies
 TV_DIR=/mnt/user/media/media/tv
 CUSTOM_DIRS=
 MAX_WORKERS=10
+API_RETRY_COUNT=3
 LOG_LEVEL=INFO
 WEB_PORT=8095
 TARGET_LANG=zh
@@ -75,6 +76,7 @@ docker run -d \
 | `TV_DIR` | 电视剧目录 | `/mnt/user/media/media/tv` | 否 |
 | `CUSTOM_DIRS` | 自定义监控目录（逗号分隔） | - | 否 |
 | `MAX_WORKERS` | 最大并发线程数 | `10` | 否 |
+| `API_RETRY_COUNT` | 单个 API 请求失败后的重试次数（仅重试失败片段） | `3` | 否 |
 | `LOG_LEVEL` | 日志级别 (DEBUG/INFO/WARNING/ERROR) | `INFO` | 否 |
 | `WEB_PORT` | Web UI 端口 | `8095` | 否 |
 | `CORS_ORIGINS` | 允许跨域访问的来源（逗号分隔；默认禁止跨域） | - | 否 |
@@ -114,6 +116,8 @@ Web UI 保存的设置存放在 `/config/settings.json`，采用原子写入和�
 6. 全部片段成功后，以原子替换方式保存双语字幕文件（原文件名 + `.{TARGET_LANG}.` 后缀）
 
 文件处理失败时不会生成“成功”输出，并会按 30、60、120 秒最多重试三次。输入编码支持 UTF-8、UTF-8 BOM、UTF-16 和 GB18030。
+
+单个字幕片段请求失败时，只会按照 `API_RETRY_COUNT` 重试该片段。重试耗尽后，如果整份字幕成功率达到 99%，失败片段将保留原文，文件会以“部分完成”状态保存；低于 99% 时仍按整份文件失败处理。
 
 ## CI/CD
 

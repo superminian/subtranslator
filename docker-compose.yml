@@ -13,6 +13,7 @@ services:
       - TV_DIR=${TV_DIR:-/mnt/user/media/media/tv}
       - CUSTOM_DIRS=${CUSTOM_DIRS:-}
       - MAX_WORKERS=${MAX_WORKERS:-10}
+      - API_RETRY_COUNT=${API_RETRY_COUNT:-3}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - WEB_PORT=${WEB_PORT:-8095}
       - TARGET_LANG=${TARGET_LANG:-zh}

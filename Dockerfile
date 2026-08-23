@@ -27,6 +27,7 @@ ENV PYTHONDONTWRITEBYTECODE="1" \
     TV_DIR="/mnt/user/media/media/tv" \
     CUSTOM_DIRS="" \
     MAX_WORKERS="10" \
+    API_RETRY_COUNT="3" \
     LOG_LEVEL="INFO" \
     WEB_PORT="8095" \
     TARGET_LANG="zh"

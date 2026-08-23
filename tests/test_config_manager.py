@@ -56,6 +56,16 @@ class ConfigManagerTests(unittest.TestCase):
             ):
                 save_config({"MAX_WORKERS": "0"})
 
+    def test_invalid_api_retry_count_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            environment = {
+                "CONFIG_FILE": str(Path(temporary_directory) / "settings.json"),
+            }
+            with patch.dict(os.environ, environment, clear=True):
+                for value in ("-1", "11", "not-a-number"):
+                    with self.subTest(value=value), self.assertRaises(ConfigError):
+                        save_config({"API_RETRY_COUNT": value})
+
     def test_empty_user_defined_provider_setting_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             environment = {

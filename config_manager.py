@@ -12,6 +12,7 @@ DEFAULT_CONFIG = {
     "TV_DIR": "/mnt/user/media/media/tv",
     "CUSTOM_DIRS": "",
     "MAX_WORKERS": "10",
+    "API_RETRY_COUNT": "3",
     "LOG_LEVEL": "INFO",
     "WEB_PORT": "8095",
     "TARGET_LANG": "zh",
@@ -63,6 +64,15 @@ def _validate_config(data):
         if not 1 <= max_workers <= 50:
             raise ConfigError("MAX_WORKERS 必须在 1 到 50 之间")
         config["MAX_WORKERS"] = str(max_workers)
+
+    if "API_RETRY_COUNT" in config:
+        try:
+            api_retry_count = int(config["API_RETRY_COUNT"])
+        except ValueError as exc:
+            raise ConfigError("API_RETRY_COUNT 必须是整数") from exc
+        if not 0 <= api_retry_count <= 10:
+            raise ConfigError("API_RETRY_COUNT 必须在 0 到 10 之间")
+        config["API_RETRY_COUNT"] = str(api_retry_count)
 
     if "WEB_PORT" in config:
         try:
