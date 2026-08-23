@@ -11,7 +11,6 @@
 - 智能检测：基于比例阈值自动跳过已翻译的双语字幕
 - 失败重试：API 调用失败自动重试
 - Web UI：现代化监控界面，实时查看翻译状态
-- API 认证：可选的 Admin Token 保护配置接口
 - 内存管理：已处理文件记录自动过期清理（1 小时 TTL）
 
 ## 支持的字幕格式
@@ -29,8 +28,8 @@
 
 ```env
 API_KEY=sk-your-api-key
-PROXY_URL=https://api.deepseek.com/v1/chat/completions
-MODEL=deepseek-chat
+PROXY_URL=https://your-api-service.example/v1/chat/completions
+MODEL=your-model-name
 MOVIES_DIR=/mnt/user/media/media/movies
 TV_DIR=/mnt/user/media/media/tv
 CUSTOM_DIRS=
@@ -38,7 +37,6 @@ MAX_WORKERS=10
 LOG_LEVEL=INFO
 WEB_PORT=8095
 TARGET_LANG=zh
-ADMIN_TOKEN=your-secret-token
 ```
 
 2. 拉取镜像并启动服务：
@@ -59,10 +57,9 @@ docker run -d \
   -v /path/to/config:/config \
   -v /path/to/media:/mnt/user/media \
   -e API_KEY=your-api-key \
-  -e PROXY_URL=https://api.deepseek.com/v1/chat/completions \
-  -e MODEL=deepseek-chat \
+  -e PROXY_URL=https://your-api-service.example/v1/chat/completions \
+  -e MODEL=your-model-name \
   -e TARGET_LANG=zh \
-  -e ADMIN_TOKEN=your-secret-token \
   cyberfrostfall/subtranslator:latest
 ```
 
@@ -71,8 +68,8 @@ docker run -d \
 | 变量 | 说明 | 默认值 | 必需 |
 |------|------|--------|------|
 | `API_KEY` | API 密钥 | - | 是 |
-| `PROXY_URL` | API 端点 | `https://api.deepseek.com/v1/chat/completions` | 否 |
-| `MODEL` | 模型名称 | `deepseek-chat` | 否 |
+| `PROXY_URL` | 完整 API 请求端点（无默认值） | - | 是 |
+| `MODEL` | 模型名称（无默认值） | - | 是 |
 | `TARGET_LANG` | 目标翻译语言 | `zh` | 否 |
 | `MOVIES_DIR` | 电影目录 | `/mnt/user/media/media/movies` | 否 |
 | `TV_DIR` | 电视剧目录 | `/mnt/user/media/media/tv` | 否 |
@@ -80,10 +77,9 @@ docker run -d \
 | `MAX_WORKERS` | 最大并发线程数 | `10` | 否 |
 | `LOG_LEVEL` | 日志级别 (DEBUG/INFO/WARNING/ERROR) | `INFO` | 否 |
 | `WEB_PORT` | Web UI 端口 | `8095` | 否 |
-| `ADMIN_TOKEN` | 配置接口认证 Token（留空则不启用认证） | - | 否 |
 | `CORS_ORIGINS` | 允许跨域访问的来源（逗号分隔；默认禁止跨域） | - | 否 |
 
-设置 `ADMIN_TOKEN` 后，浏览器会提示输入 Token，并仅在当前浏览器会话中保存；Token 不会嵌入页面或写入 URL。未设置 `ADMIN_TOKEN` 时可以查看本机界面，但配置写入会被禁用。
+`PROXY_URL` 和 `MODEL` 不提供默认值或候选项，必须通过环境变量或已保存的 Web UI 配置自行填写，否则服务会拒绝启动。Web UI 的管理与配置接口不再要求 Admin Token；请通过端口映射、防火墙或反向代理限制访问范围。
 
 Web UI 保存的设置存放在 `/config/settings.json`，采用原子写入和仅属主可读写权限。重启后，文件中的设置会覆盖对应环境变量；未保存到文件的项目继续使用环境变量。API Key 留空或保持 `***` 不会覆盖已有密钥。
 
@@ -98,13 +94,6 @@ Web UI 保存的设置存放在 `/config/settings.json`，采用原子写入和�
 | `pt` | 葡萄牙语 | `ru` | 俄语 |
 | `ar` | 阿拉伯语 | `th` | 泰语 |
 
-### 推荐模型
-
-- **DeepSeek**（推荐）：性价比高，中文翻译质量好
-- **GPT-4o-mini**：速度快，质量稳定
-- **GPT-4o**：质量最高，成本较高
-- 其他 OpenAI 兼容 API 均可使用
-
 ## Web UI
 
 访问 `http://your-server:8095` 可以：
@@ -113,7 +102,7 @@ Web UI 保存的设置存放在 `/config/settings.json`，采用原子写入和�
 - 文件列表：查看最近翻译的文件及状态
 - 翻译内容：实时查看翻译进度和内容
 - 系统日志：实时查看服务运行日志
-- 配置管理：在线修改配置（设置 `ADMIN_TOKEN` 后需认证）
+- 配置管理：在线修改配置，无需认证
 
 ## 工作原理
 
@@ -155,7 +144,7 @@ Web UI 保存的设置存放在 `/config/settings.json`，采用原子写入和�
 ### API 调用失败
 - 检查 API Key 是否有效
 - 检查网络连接
-- 如使用代理，确认 `PROXY_URL` 正确
+- 确认自定义的 `PROXY_URL` 是完整请求地址，且 `MODEL` 为服务商支持的模型名称
 
 ## 许可证
 

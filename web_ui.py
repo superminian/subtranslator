@@ -1,9 +1,7 @@
 import logging
 import os
-import secrets
 import threading
 from datetime import UTC, datetime
-from functools import wraps
 
 from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
@@ -18,36 +16,6 @@ cors_origins = [
 ]
 if cors_origins:
     CORS(app, origins=cors_origins)
-
-ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
-
-
-def require_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if ADMIN_TOKEN:
-            token = request.headers.get("X-Admin-Token", "")
-            if not secrets.compare_digest(token, ADMIN_TOKEN):
-                return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-
-    return decorated
-
-
-def require_admin(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not ADMIN_TOKEN:
-            return jsonify(
-                {"error": "ADMIN_TOKEN is required to modify configuration"}
-            ), 503
-        token = request.headers.get("X-Admin-Token", "")
-        if not secrets.compare_digest(token, ADMIN_TOKEN):
-            return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-
-    return decorated
-
 
 # 全局状态管理
 class AppState:
@@ -187,7 +155,7 @@ state = AppState()
 # API 路由
 @app.route("/")
 def index():
-    return render_template("index.html", admin_token_required=bool(ADMIN_TOKEN))
+    return render_template("index.html")
 
 
 @app.route("/health")
@@ -204,14 +172,12 @@ def get_stats():
 
 
 @app.route("/api/files")
-@require_auth
 def get_files():
     with state.lock:
         return jsonify(state.recent_files)
 
 
 @app.route("/api/logs")
-@require_auth
 def get_logs():
     limit = min(max(request.args.get("limit", 100, type=int), 1), 500)
     with state.lock:
@@ -219,21 +185,18 @@ def get_logs():
 
 
 @app.route("/api/translation-logs")
-@require_auth
 def get_translation_logs():
     with state.lock:
         return jsonify(state.translation_logs)
 
 
 @app.route("/api/translation-content-logs")
-@require_auth
 def get_translation_content_logs():
     with state.lock:
         return jsonify(state.translation_content_logs)
 
 
 @app.route("/api/config", methods=["GET"])
-@require_auth
 def get_config():
     try:
         config = load_config()
@@ -244,7 +207,6 @@ def get_config():
 
 
 @app.route("/api/config", methods=["POST"])
-@require_admin
 def update_config():
     try:
         data = request.get_json(silent=True)
@@ -269,5 +231,5 @@ def start_web_server(port=8095):
     logger = logging.getLogger("SubtitleTranslator")
     logger.info(f"启动生产级 Web 服务器，端口: {port}")
 
-    # 容器端口必须监听所有接口；对外暴露范围由端口映射和认证控制。
+    # 容器端口必须监听所有接口；对外暴露范围由端口映射控制。
     serve(app, host="0.0.0.0", port=port, threads=4)  # nosec B104

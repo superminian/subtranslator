@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 DEFAULT_CONFIG = {
     "API_KEY": "",
     "PROXY_URL": "",
-    "MODEL": "gpt-4o-mini",
+    "MODEL": "",
     "MOVIES_DIR": "/mnt/user/media/media/movies",
     "TV_DIR": "/mnt/user/media/media/tv",
     "CUSTOM_DIRS": "",
@@ -87,9 +87,6 @@ def _validate_config(data):
         if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
             raise ConfigError("PROXY_URL 必须是有效的 HTTP 或 HTTPS URL")
 
-    if "MODEL" in config and not config["MODEL"]:
-        raise ConfigError("MODEL 不能为空")
-
     return config
 
 
@@ -114,6 +111,13 @@ def save_config(updates):
     # 页面用 *** 表示已有密钥；空值或掩码都不应覆盖真实密钥。
     if normalized_updates.get("API_KEY") in {"", "***", None}:
         normalized_updates.pop("API_KEY", None)
+
+    for key in ("PROXY_URL", "MODEL"):
+        value = normalized_updates.get(key)
+        if key in normalized_updates and (
+            value is None or not str(value).strip()
+        ):
+            raise ConfigError(f"{key} 不能为空")
 
     saved_config.update(_validate_config(normalized_updates))
     validated_config = _validate_config(saved_config)

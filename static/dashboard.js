@@ -2,9 +2,6 @@
 
 let lastContentSignature = '';
 let previousModalFocus = null;
-const adminTokenRequired = document.body.dataset.adminTokenRequired === 'true';
-let adminToken = sessionStorage.getItem('subtranslatorAdminToken') || '';
-let adminPromptDismissed = false;
 
 const emptyState = (message) => `
     <div class="empty-state">
@@ -27,33 +24,8 @@ function fileNameFromPath(filePath) {
     return String(filePath || '').replaceAll('\\', '/').split('/').pop() || '未知文件';
 }
 
-function getAdminToken() {
-    if (!adminTokenRequired) return '';
-    if (adminToken) return adminToken;
-    if (adminPromptDismissed) throw new Error('需要 Admin Token 才能读取管理数据');
-
-    adminToken = window.prompt('请输入 Admin Token') || '';
-    if (!adminToken) {
-        adminPromptDismissed = true;
-        throw new Error('未提供 Admin Token');
-    }
-    sessionStorage.setItem('subtranslatorAdminToken', adminToken);
-    return adminToken;
-}
-
 async function apiFetch(url, options = {}) {
-    const token = getAdminToken();
-    const headers = new Headers(options.headers || {});
-    if (token) headers.set('X-Admin-Token', token);
-
-    const response = await fetch(url, {...options, headers});
-    if (response.status === 401) {
-        adminToken = '';
-        adminPromptDismissed = true;
-        sessionStorage.removeItem('subtranslatorAdminToken');
-        throw new Error('Admin Token 无效，请刷新页面后重试');
-    }
-    return response;
+    return fetch(url, options);
 }
 
 function setTheme(theme) {

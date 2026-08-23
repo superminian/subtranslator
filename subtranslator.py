@@ -69,15 +69,13 @@ class SubtitleTranslator:
     def __init__(
         self,
         api_key,
-        proxy_url=None,
-        model="gpt-4o-mini",
+        proxy_url,
+        model,
         max_workers=10,
         target_lang="zh",
     ):
         self.api_key = api_key
-        self.proxy_url = (
-            proxy_url if proxy_url else "https://api.openai.com/v1/chat/completions"
-        )
+        self.proxy_url = proxy_url
         self.model = model
         self.max_workers = max_workers
         self.target_lang = target_lang
@@ -567,7 +565,7 @@ def main():
     configure_logging(config["LOG_LEVEL"])
 
     api_key = config["API_KEY"]
-    proxy_url = config["PROXY_URL"] or None
+    proxy_url = config["PROXY_URL"]
     model = config["MODEL"]
 
     watch_dirs = [
@@ -585,9 +583,13 @@ def main():
     web_port = int(config["WEB_PORT"])
     target_lang = config["TARGET_LANG"]
 
-    if not api_key:
-        logger.error("未设置API_KEY环境变量")
-        state.add_log("ERROR", "未设置API_KEY环境变量")
+    missing_config = [
+        key for key in ("API_KEY", "PROXY_URL", "MODEL") if not config[key]
+    ]
+    if missing_config:
+        message = f"未设置必需配置: {', '.join(missing_config)}"
+        logger.error(message)
+        state.add_log("ERROR", message)
         return 1
 
     subtitle_extensions = [".srt", ".ass", ".ssa", ".vtt"]

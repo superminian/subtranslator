@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
 </head>
-<body data-admin-token-required="{{ admin_token_required | tojson }}">
+<body>
     <svg class="icon-sprite" aria-hidden="true">
         <symbol id="icon-subtitles" viewBox="0 0 24 24">
             <rect x="3" y="5" width="18" height="14" rx="2"></rect>
@@ -173,22 +173,16 @@
                 <div class="form-group form-group-wide">
                     <label for="api-key">API Key <span aria-hidden="true">*</span></label>
                     <input type="password" name="API_KEY" id="api-key" placeholder="sk-..." autocomplete="off">
-                    <small>DeepSeek 或 OpenAI API 密钥；留空则保留现有密钥</small>
+                    <small>填写所用 API 服务的密钥；留空则保留现有密钥</small>
                 </div>
                 <div class="form-group form-group-wide">
-                    <label for="proxy-url">API 端点</label>
-                    <input type="url" name="PROXY_URL" id="proxy-url" placeholder="https://api.deepseek.com/v1/chat/completions">
-                    <small>填写与所选模型对应的兼容 API 地址</small>
+                    <label for="proxy-url">API 端点 <span aria-hidden="true">*</span></label>
+                    <input type="url" name="PROXY_URL" id="proxy-url" placeholder="请输入完整的 HTTP(S) API 地址" required>
+                    <small>无默认端点，请填写所用服务的完整请求地址</small>
                 </div>
                 <div class="form-group">
-                    <label for="model">模型</label>
-                    <select name="MODEL" id="model">
-                        <option value="deepseek-chat">deepseek-chat</option>
-                        <option value="gpt-4o-mini">gpt-4o-mini</option>
-                        <option value="gpt-4o">gpt-4o</option>
-                        <option value="gpt-4-turbo">gpt-4-turbo</option>
-                        <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
-                    </select>
+                    <label for="model">模型 <span aria-hidden="true">*</span></label>
+                    <input type="text" name="MODEL" id="model" placeholder="请输入模型名称" autocomplete="off" required>
                 </div>
                 <div class="form-group">
                     <label for="max-workers">最大并发数</label>

@@ -19,6 +19,8 @@ class SubtitleTranslatorTests(unittest.TestCase):
     def setUp(self):
         self.translator = SubtitleTranslator(
             api_key="test-key",
+            proxy_url="https://api.example.test/v1/chat/completions",
+            model="user-model",
             max_workers=2,
             target_lang="zh",
         )

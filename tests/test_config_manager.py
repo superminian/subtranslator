@@ -9,6 +9,16 @@ from config_manager import ConfigError, load_config, save_config
 
 
 class ConfigManagerTests(unittest.TestCase):
+    def test_provider_settings_have_no_defaults(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            environment = {
+                "CONFIG_FILE": str(Path(temporary_directory) / "settings.json"),
+            }
+            with patch.dict(os.environ, environment, clear=True):
+                config = load_config()
+                self.assertEqual(config["PROXY_URL"], "")
+                self.assertEqual(config["MODEL"], "")
+
     def test_saved_config_overrides_environment_and_preserves_masked_key(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             config_path = Path(temporary_directory) / "settings.json"
@@ -45,6 +55,16 @@ class ConfigManagerTests(unittest.TestCase):
                 self.assertRaises(ConfigError),
             ):
                 save_config({"MAX_WORKERS": "0"})
+
+    def test_empty_user_defined_provider_setting_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            environment = {
+                "CONFIG_FILE": str(Path(temporary_directory) / "settings.json"),
+            }
+            with patch.dict(os.environ, environment, clear=True):
+                for key in ("PROXY_URL", "MODEL"):
+                    with self.subTest(key=key), self.assertRaises(ConfigError):
+                        save_config({key: ""})
 
     def test_unknown_key_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -7,8 +7,8 @@ services:
 
     environment:
       - API_KEY=${API_KEY}
-      - PROXY_URL=${PROXY_URL:-https://api.deepseek.com/v1/chat/completions}
-      - MODEL=${MODEL:-deepseek-chat}
+      - PROXY_URL=${PROXY_URL:-}
+      - MODEL=${MODEL:-}
       - MOVIES_DIR=${MOVIES_DIR:-/mnt/user/media/media/movies}
       - TV_DIR=${TV_DIR:-/mnt/user/media/media/tv}
       - CUSTOM_DIRS=${CUSTOM_DIRS:-}
@@ -16,7 +16,6 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - WEB_PORT=${WEB_PORT:-8095}
       - TARGET_LANG=${TARGET_LANG:-zh}
-      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
 
     volumes:

@@ -23,14 +23,12 @@ VOLUME ["/config", "/mnt/user/media"]
 # API_KEY 应在运行时通过 docker run -e 或 docker-compose 传入
 ENV PYTHONDONTWRITEBYTECODE="1" \
     PYTHONUNBUFFERED="1" \
-    MODEL="deepseek-chat" \
     MOVIES_DIR="/mnt/user/media/media/movies" \
     TV_DIR="/mnt/user/media/media/tv" \
     CUSTOM_DIRS="" \
     MAX_WORKERS="10" \
     LOG_LEVEL="INFO" \
     WEB_PORT="8095" \
-    PROXY_URL="https://api.deepseek.com/v1/chat/completions" \
     TARGET_LANG="zh"
 
 # 暴露 Web UI 端口
